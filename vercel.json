@@ -3,22 +3,25 @@
     "builds": [
       {
         "src": "flask_backend/api/app.py",
-        "use": "@vercel/python"
-      },
-      {
-        "src": "CosmeticsRecomendation/package.json",
-        "use": "@vercel/static-build"
+        "use": "@vercel/python",
+        "config": { 
+          "maxLambdaSize": "15mb",
+          "runtime": "python3.9",
+          "includeFiles": [
+            "flask_backend/cosmetic_p.csv",
+            "flask_backend/.env"
+          ]
+        }
       }
     ],
     "routes": [
       {
         "src": "/api/(.*)",
         "dest": "flask_backend/api/app.py"
-      },
-      {
-        "src": "/(.*)",
-        "dest": "CosmeticsRecomendation/$1"
       }
-    ]
-  }
-  
+    ],
+    "env": {
+      "FLASK_ENV": "production",
+      "FLASK_APP": "flask_backend/api/app.py"
+    }
+}

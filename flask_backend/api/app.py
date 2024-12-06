@@ -191,9 +191,11 @@ def add_search_history():
 def hello():
     return jsonify(message="Hello from Flask!")
 
-# For Vercel deployment, this is the handler for serverless functions
-def handler(request):
-    return app(request)
-
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True)
+else:
+    # This is needed for Vercel serverless deployment
+    app = app.wsgi_app
+
+def handler(event, context):
+    return app
