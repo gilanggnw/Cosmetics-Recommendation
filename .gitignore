@@ -1,6 +1,6 @@
 # Add these lines to .gitignore
 .env
 *.env
-
+venv
 main.py
 .vercel
