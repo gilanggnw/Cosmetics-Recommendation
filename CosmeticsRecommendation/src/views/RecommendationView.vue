@@ -16,7 +16,7 @@ const itemsPerPage = 30
 
 const fetchProducts = async () => {
   try {
-    const response = await fetch('http://localhost:5000/api/products')
+    const response = await fetch('https://loveyourskin.vercel.app/api/products')
     const data = await response.json()
     products.value = data
   } catch (error) {
