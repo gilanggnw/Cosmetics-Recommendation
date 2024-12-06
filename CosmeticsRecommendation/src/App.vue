@@ -4,7 +4,7 @@ import { RouterLink, RouterView } from 'vue-router'
 
 <template>
   <div class="min-h-screen bg-gray-900">
-    <header class="w-full py-6 px-4 bg-gray-800">
+    <header class="sticky top-0 w-full py-6 px-4 bg-gray-800 z-50">
       <div class="container mx-auto px-4">
         <nav class="flex justify-between items-center">
           <div class="flex items-center">
