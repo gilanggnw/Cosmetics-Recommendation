@@ -1,5 +1,6 @@
 from flask import Flask, jsonify, request
-from flask_jwt_extended import JWTManager, create_access_token
+from flask_jwt_extended import JWTManager, create_access_token, get_jwt_identity, jwt_required
+from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 import pandas as pd
 from flask_cors import CORS
@@ -13,7 +14,14 @@ load_dotenv()
 
 # Set up Flask application
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
+CORS(app, resources={
+    r"/api/*": {
+        "origins": ["http://localhost:5173"],  # Add your Vue.js development server
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"],
+        "supports_credentials": True
+    }
+})
 
 # Setup JWT using only environment variable
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
@@ -238,23 +246,35 @@ def add_bookmark():
     finally:
         connection.close()
 
-# Add search history endpoint
-@app.route('/api/search/history', methods=['POST'])
+# Update the search history endpoint to properly handle CORS
+@app.route('/api/search/history', methods=['POST', 'OPTIONS'])
+@jwt_required()
 def add_search_history():
+    if request.method == 'OPTIONS':
+        return jsonify({"message": "OK"}), 200
+        
     try:
-        connection = get_db_connection()
+        current_user_id = get_jwt_identity()  # Get user ID from JWT token
         data = request.json
+        
+        if not data or 'search_query' not in data:
+            return jsonify({"error": "Missing search query"}), 422
+            
+        connection = get_db_connection()
         
         with connection.cursor() as cursor:
             sql = "INSERT INTO search_history (user_id, search_query) VALUES (%s, %s)"
-            cursor.execute(sql, (data['user_id'], data['search_query']))
-        
+            cursor.execute(sql, (current_user_id, data['search_query']))
+            
         connection.commit()
-        return jsonify({"message": "Search history recorded successfully"}), 201
+        return jsonify({"message": "Search history recorded"}), 201
+        
     except Exception as e:
+        print(f"Search history error: {str(e)}")
         return jsonify({"error": str(e)}), 500
     finally:
-        connection.close()
+        if connection:
+            connection.close()
 
 # Simple hello world endpoint
 @app.route('/api/hello', methods=['GET'])

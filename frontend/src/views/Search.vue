@@ -1,39 +1,30 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useSearchStore } from '@/stores/searchStore'
+import { useAuthStore } from '@/stores/authStore'
 
 const products = ref([])
 const searchQuery = ref('')
-const allProducts = ref([]) // Store all products
+const allProducts = ref([])
 const currentPage = ref(1)
 const searchStore = useSearchStore()
-const isLoading = ref(true)
+const authStore = useAuthStore()
+const isLoading = ref(false)
+const showResults = ref(false)
 const itemsPerPage = 20
 
 // Fetch all products initially
 const fetchProducts = async () => {
-  isLoading.value = true
   try {
     const response = await fetch('http://localhost:5000/api/products')
     const data = await response.json()
 
     if (Array.isArray(data)) {
       searchStore.setAllProducts(data)
-      if (!searchStore.products.length) {
-        // Only set random products if no existing search results
-        const shuffled = [...data].sort(() => 0.5 - Math.random())
-        searchStore.setProducts(shuffled)
-      }
-    } else {
-      console.error('Data is not an array:', data)
-      searchStore.setProducts([])
     }
   } catch (error) {
     console.error('Error:', error)
-    searchStore.setProducts([])
-  } finally {
-    isLoading.value = false
   }
 }
 
@@ -63,15 +54,63 @@ const totalPages = computed(() =>
   Math.ceil(filteredProducts.value.length / itemsPerPage)
 )
 
-// Handle search
-const handleSearch = () => {
-  searchStore.setCurrentPage(1) // Reset to first page on new search
-  if (searchStore.searchQuery) {
-    searchStore.setProducts(filteredProducts.value)
-  } else {
-    // Reset to random products if search is cleared
-    const shuffled = [...searchStore.allProducts].sort(() => 0.5 - Math.random())
-    searchStore.setProducts(shuffled)
+const recordSearchHistory = async (query) => {
+  if (!authStore.isAuthenticated()) return;
+
+  try {
+    const response = await fetch('http://localhost:5000/api/search/history', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authStore.token}` // Make sure token is properly formatted
+      },
+      body: JSON.stringify({
+        search_query: String(query), // Ensure query is a string
+        user_id: authStore.user?.id // Add user ID from auth store
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Search history error:', errorData);
+      throw new Error(errorData.error || 'Failed to record search history');
+    }
+
+    const data = await response.json();
+    console.log('Search history recorded:', data);
+  } catch (error) {
+    console.error('Error recording search history:', error);
+  }
+}
+
+// Update handleSearch function
+const handleSearch = async () => {
+  isLoading.value = true;
+  showResults.value = true;
+
+  try {
+    if (searchStore.searchQuery) {
+      // Only record search if user is authenticated
+      if (authStore.isAuthenticated()) {
+        await recordSearchHistory(searchStore.searchQuery);
+      }
+
+      const filtered = searchStore.allProducts.filter(product =>
+        product.name?.toLowerCase().includes(searchStore.searchQuery.toLowerCase()) ||
+        product.brand?.toLowerCase().includes(searchStore.searchQuery.toLowerCase()) ||
+        product.description?.toLowerCase().includes(searchStore.searchQuery.toLowerCase())
+      );
+
+      searchStore.setProducts(filtered);
+      searchStore.setCurrentPage(1);
+    } else {
+      const shuffled = [...searchStore.allProducts].sort(() => 0.5 - Math.random());
+      searchStore.setProducts(shuffled.slice(0, itemsPerPage));
+    }
+  } catch (error) {
+    console.error('Search error:', error);
+  } finally {
+    isLoading.value = false;
   }
 }
 
@@ -126,7 +165,7 @@ onMounted(() => {
     </div>
 
     <!-- Results Section -->
-    <section class="max-w-7xl mx-auto">
+    <section v-if="showResults" class="max-w-7xl mx-auto">
       <h2 class="text-2xl font-semibold text-white mb-8">
         {{ searchStore.searchQuery ? 'Search Results:' : 'You might like these:' }}
       </h2>
@@ -141,7 +180,7 @@ onMounted(() => {
       >
         No products found matching your search.
       </div>
-      
+
       <div v-else>
         <!-- Product Grid -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
