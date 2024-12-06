@@ -182,6 +182,44 @@ def register_user():
         if connection:
             connection.close()
 
+@app.route('/api/login', methods=['POST'])
+def login():
+    try:
+        connection = get_db_connection()
+        data = request.json
+        
+        with connection.cursor() as cursor:
+            # Find user by email
+            cursor.execute("SELECT id, username, email, password_hash FROM users WHERE email = %s", 
+                         (data['email'],))
+            user = cursor.fetchone()
+            
+            if user is None:
+                return jsonify({"error": "Invalid email or password"}), 401
+            
+            # Verify password
+            if check_password_hash(user['password_hash'], data['password']):
+                # Generate access token
+                access_token = create_access_token(identity=user['id'])
+                
+                return jsonify({
+                    "token": access_token,
+                    "user": {
+                        "id": user['id'],
+                        "username": user['username'],
+                        "email": user['email']
+                    }
+                })
+            else:
+                return jsonify({"error": "Invalid email or password"}), 401
+                
+    except Exception as e:
+        print(f"Login error: {str(e)}")
+        return jsonify({"error": "Login failed"}), 500
+    finally:
+        if connection:
+            connection.close()
+
 # Add bookmark endpoint
 @app.route('/api/bookmark', methods=['POST'])
 def add_bookmark():
