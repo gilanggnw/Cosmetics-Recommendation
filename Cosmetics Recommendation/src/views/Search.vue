@@ -1,32 +1,99 @@
 <script setup>
-import { ref, onMounted } from 'vue'
-import { RouterLink, RouterView } from 'vue-router'
+import { ref, onMounted, computed } from 'vue'
+import { RouterLink } from 'vue-router'
+import { useSearchStore } from '@/stores/searchStore'
 
 const products = ref([])
 const searchQuery = ref('')
+const allProducts = ref([]) // Store all products
+const currentPage = ref(1)
+const searchStore = useSearchStore()
 const isLoading = ref(true)
+const itemsPerPage = 20
 
+// Fetch all products initially
 const fetchProducts = async () => {
+  isLoading.value = true
   try {
     const response = await fetch('http://localhost:5000/api/products')
     const data = await response.json()
-    console.log('Fetched data:', data) // Add debugging
 
     if (Array.isArray(data)) {
-      // Get 9 random products for recommendations
-      const shuffled = [...data].sort(() => 0.5 - Math.random())
-      products.value = shuffled.slice(0, 9)
-      console.log('Processed products:', products.value) // Add debugging
+      searchStore.setAllProducts(data)
+      if (!searchStore.products.length) {
+        // Only set random products if no existing search results
+        const shuffled = [...data].sort(() => 0.5 - Math.random())
+        searchStore.setProducts(shuffled)
+      }
     } else {
       console.error('Data is not an array:', data)
-      products.value = []
+      searchStore.setProducts([])
     }
-    isLoading.value = false
   } catch (error) {
-    console.error('Error fetching products:', error)
-    products.value = []
+    console.error('Error:', error)
+    searchStore.setProducts([])
+  } finally {
     isLoading.value = false
   }
+}
+
+// Computed property for filtered products
+const filteredProducts = computed(() => {
+  if (!searchStore.searchQuery) {
+    return searchStore.products
+  }
+
+  const query = searchStore.searchQuery.toLowerCase()
+  return searchStore.allProducts.filter(product =>
+    product.name?.toLowerCase().includes(query) ||
+    product.brand?.toLowerCase().includes(query) ||
+    product.description?.toLowerCase().includes(query)
+  )
+})
+
+// Computed property for paginated products
+const paginatedProducts = computed(() => {
+  const startIndex = (searchStore.currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  return filteredProducts.value.slice(startIndex, endIndex)
+})
+
+// Computed total pages
+const totalPages = computed(() =>
+  Math.ceil(filteredProducts.value.length / itemsPerPage)
+)
+
+// Handle search
+const handleSearch = () => {
+  searchStore.setCurrentPage(1) // Reset to first page on new search
+  if (searchStore.searchQuery) {
+    searchStore.setProducts(filteredProducts.value)
+  } else {
+    // Reset to random products if search is cleared
+    const shuffled = [...searchStore.allProducts].sort(() => 0.5 - Math.random())
+    searchStore.setProducts(shuffled)
+  }
+}
+
+// Handle page change
+const changePage = (page) => {
+  searchStore.setCurrentPage(page)
+}
+
+const getPageNumbers = (current, total) => {
+  if (total <= 10) {
+    return Array.from({ length: total }, (_, i) => i + 1)
+  }
+
+  if (current <= 4) {
+    return [1, 2, 3, 4, 5, 6, 7, 8, '...', total]
+  }
+
+  if (current >= total - 3) {
+    return [1, '...', total - 7, total - 6, total - 5, total - 4, total - 3, total - 2, total - 1, total]
+  }
+
+  return [1, '...', current - 2, current - 1, current, current + 1, current + 2, '...', total]
 }
 
 onMounted(() => {
@@ -43,12 +110,14 @@ onMounted(() => {
       </h1>
       <div class="relative">
         <input
-          v-model="searchQuery"
+          v-model="searchStore.searchQuery"
           type="text"
           placeholder="Search for cosmetics..."
           class="w-full px-6 py-4 bg-gray-800 text-white rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none placeholder-gray-400"
+          @keyup.enter="handleSearch"
         />
         <button
+          @click="handleSearch"
           class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-md transition-colors"
         >
           Search
@@ -56,44 +125,104 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- Recommendations Section -->
+    <!-- Results Section -->
     <section class="max-w-7xl mx-auto">
-      <h2 class="text-2xl font-semibold text-white mb-8">You might like these:</h2>
+      <h2 class="text-2xl font-semibold text-white mb-8">
+        {{ searchStore.searchQuery ? 'Search Results:' : 'You might like these:' }}
+      </h2>
 
       <div v-if="isLoading" class="text-center text-gray-400">
-        Loading recommendations...
+        Loading...
       </div>
 
       <div
-        v-else
-        class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+        v-else-if="!searchStore.products.length"
+        class="text-center text-gray-400"
       >
-        <!-- Product Cards -->
-        <div
-          v-for="product in products"
-          :key="product.id"
-          class="bg-gray-800 rounded-lg overflow-hidden hover:shadow-lg transition-shadow"
-        >
-          <div class="p-6">
-            <h3 class="text-xl font-semibold text-white mb-2 truncate">
-              {{ product.name }}
-            </h3>
-            <p class="text-gray-400 mb-4 h-20 overflow-hidden">
-              {{ product.description }}
-            </p>
-            <div class="flex justify-between items-center">
-              <span class="text-green-500 font-semibold">
-                {{ product.brand }}
-              </span>
-              <RouterLink
-                v-if="product?.id !== undefined"
-                :to="{ name: 'product-details', params: { id: product.id }}"
-                class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-md transition-colors text-sm"
-              >
-                View Details
-              </RouterLink>
+        No products found matching your search.
+      </div>
+      
+      <div v-else>
+        <!-- Product Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+          <div
+            v-for="product in paginatedProducts"
+            :key="product.id"
+            class="bg-gray-800 rounded-lg overflow-hidden hover:shadow-lg transition-shadow"
+          >
+            <div class="p-6">
+              <h3 class="text-xl font-semibold text-white mb-2 truncate">
+                {{ product?.name || 'Untitled Product' }}
+              </h3>
+              <p class="text-gray-400 mb-4 h-20 overflow-hidden">
+                {{ product?.description || 'No description available' }}
+              </p>
+              <div class="flex justify-between items-center">
+                <span class="text-green-500 font-semibold">
+                  {{ product?.brand || 'Unknown Brand' }}
+                </span>
+                <RouterLink
+                  :to="{ name: 'product-details', params: { id: product.id }}"
+                  class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-md transition-colors text-sm"
+                >
+                  View Details
+                </RouterLink>
+              </div>
             </div>
           </div>
+        </div>
+
+        <!-- Pagination -->
+        <div class="flex justify-center space-x-2 mt-8" v-if="totalPages > 1">
+          <!-- Previous Page Button -->
+          <button
+            @click="changePage(currentPage - 1)"
+            :disabled="currentPage === 1"
+            :class="[
+              'px-4 py-2 rounded-md transition-colors',
+              currentPage === 1
+                ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                : 'bg-gray-800 text-gray-300 hover:bg-green-600 hover:text-white'
+            ]"
+          >
+            ←
+          </button>
+
+          <!-- Page Numbers -->
+          <template v-for="page in getPageNumbers(currentPage, totalPages)" :key="page">
+            <span
+              v-if="page === '...'"
+              class="px-4 py-2 text-gray-500"
+            >
+              ...
+            </span>
+            <button
+              v-else
+              @click="changePage(page)"
+              :class="[
+                'px-4 py-2 rounded-md transition-colors',
+                currentPage === page
+                  ? 'bg-green-500 text-white'
+                  : 'bg-gray-800 text-gray-300 hover:bg-green-600 hover:text-white'
+              ]"
+            >
+              {{ page }}
+            </button>
+          </template>
+
+          <!-- Next Page Button -->
+          <button
+            @click="changePage(currentPage + 1)"
+            :disabled="currentPage === totalPages"
+            :class="[
+              'px-4 py-2 rounded-md transition-colors',
+              currentPage === totalPages
+                ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                : 'bg-gray-800 text-gray-300 hover:bg-green-600 hover:text-white'
+            ]"
+          >
+            →
+          </button>
         </div>
       </div>
     </section>
