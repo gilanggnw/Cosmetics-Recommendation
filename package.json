@@ -1,0 +1,5 @@
+{
+  "devDependencies": {
+    "vite-plugin-csv": "^1.0.0"
+  }
+}

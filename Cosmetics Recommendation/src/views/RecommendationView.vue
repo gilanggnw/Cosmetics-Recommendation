@@ -1,135 +1,163 @@
 <script setup>
-const reviews = [
-  {
-    name: 'Sarah Johnson',
-    image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=1',
-    text: 'The personalized recommendations completely transformed my skincare routine. My skin has never looked better!',
-    rating: 5
-  },
-  {
-    name: 'Emily Chen',
-    image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=2',
-    text: 'I love how the system considers my specific skin concerns. The product matches were perfect for me.',
-    rating: 5
-  },
-  {
-    name: 'Michael Rodriguez',
-    image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=3',
-    text: 'Finally found products that work together! No more guessing games with my skincare routine.',
-    rating: 4
+import { ref, computed, onMounted } from 'vue'
+import { RouterLink } from 'vue-router'
+
+const skinTypes = ref(['Normal', 'Oily', 'Dry', 'Combination', 'Sensitive'])
+const selectedSkinTypes = ref([])
+const productTypes = ref(['Cleanser', 'Moisturizer', 'Face Mask', 'Treatment', 'Eye cream', 'Sun protect'])
+const selectedProductTypes = ref([])
+const minPrice = ref('')
+const maxPrice = ref('')
+const products = ref([])
+const isLoading = ref(true)
+
+const fetchProducts = async () => {
+  try {
+    const response = await fetch('http://localhost:5000/api/products')
+    const data = await response.json()
+    products.value = data
+  } catch (error) {
+    console.error('Error fetching products:', error)
+  } finally {
+    isLoading.value = false
   }
-]
+}
+
+const filteredProducts = computed(() => {
+  if (!products.value.length) return []
+  
+  return products.value.filter(product => {
+    const matchesType = selectedProductTypes.value.length === 0 || 
+                       selectedProductTypes.value.includes(product.Label)
+    
+    const matchesSkinType = selectedSkinTypes.value.length === 0 || 
+                           selectedSkinTypes.value.some(type => product[type] == 1)
+    
+    const productPrice = parseFloat(product.price)
+    const matchesMinPrice = !minPrice.value || productPrice >= parseFloat(minPrice.value)
+    const matchesMaxPrice = !maxPrice.value || productPrice <= parseFloat(maxPrice.value)
+    
+    return matchesType && matchesSkinType && matchesMinPrice && matchesMaxPrice
+  })
+})
+
+onMounted(() => {
+  fetchProducts()
+})
 </script>
 
 <template>
-  <main class="container mx-auto px-4 py-12">
-    <div class="max-w-4xl mx-auto text-center">
-      <!-- Hero Section -->
-      <h1 class="text-5xl font-bold text-white mb-6">
-        Discover Your Perfect Beauty Routine
-      </h1>
-      <p class="text-xl text-gray-300 mb-12">
-        Get personalized skincare recommendations tailored to your unique needs and concerns
-      </p>
-
-      <!-- Consultation Button -->
-      <button
-        class="bg-green-500 hover:bg-green-600 text-white text-xl font-semibold py-4 px-8 rounded-lg transform transition-all hover:scale-105 shadow-lg hover:shadow-green-500/50"
-      >
-        Start Skincare Consultation Now
-      </button>
-
-      <!-- Features Section -->
-      <div class="mt-24 grid grid-cols-1 md:grid-cols-3 gap-8">
-        <div class="p-6 bg-gray-800 rounded-lg">
-          <h3 class="text-xl font-semibold text-green-500 mb-3">
-            Personalized Analysis
-          </h3>
-          <p class="text-gray-300">
-            Get recommendations based on your skin type and concerns
-          </p>
-        </div>
-        <div class="p-6 bg-gray-800 rounded-lg">
-          <h3 class="text-xl font-semibold text-green-500 mb-3">
-            Expert Insights
-          </h3>
-          <p class="text-gray-300">
-            Backed by dermatological research and beauty experts
-          </p>
-        </div>
-        <div class="p-6 bg-gray-800 rounded-lg">
-          <h3 class="text-xl font-semibold text-green-500 mb-3">
-            Smart Matching
-          </h3>
-          <p class="text-gray-300">
-            Find products that work together for optimal results
-          </p>
+  <div class="flex">
+    <!-- Sidebar -->
+    <div class="w-64 h-screen bg-gray-800 text-white flex flex-col border-r border-gray-700">
+      <div class="p-4 text-2xl font-bold">Filters</div>
+      
+      <!-- Product Type Checkboxes -->
+      <div class="px-4 py-2">
+        <label class="block text-sm font-medium text-gray-300 mb-2">Product Type</label>
+        <div class="space-y-2">
+          <div v-for="type in productTypes" :key="type" class="flex items-center">
+            <input 
+              type="checkbox"
+              :id="type"
+              v-model="selectedProductTypes"
+              :value="type"
+              class="h-4 w-4 rounded border-gray-600 text-green-500 focus:ring-green-500 bg-gray-700"
+            >
+            <label :for="type" class="ml-2 text-sm text-gray-300">{{ type }}</label>
+          </div>
         </div>
       </div>
 
-      <!-- Reviews Section -->
-      <section class="mt-24">
-        <h2 class="text-3xl font-bold text-white mb-12">What Our Users Say</h2>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div v-for="review in reviews" :key="review.name" class="bg-gray-800 p-6 rounded-lg">
-            <img :src="review.image" alt="User Avatar" class="w-16 h-16 rounded-full mx-auto mb-4"/>
-            <div class="flex justify-center mb-2">
-              <template v-for="star in review.rating" :key="star">
-                <svg class="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                </svg>
-              </template>
-            </div>
-            <p class="text-gray-300 mb-4">{{ review.text }}</p>
-            <p class="text-green-500 font-semibold">{{ review.name }}</p>
+      <!-- Skin Type Checkboxes -->
+      <div class="px-4 py-2">
+        <label class="block text-sm font-medium text-gray-300 mb-2">Skin Type</label>
+        <div class="space-y-2">
+          <div v-for="type in skinTypes" :key="type" class="flex items-center">
+            <input 
+              type="checkbox"
+              :id="type"
+              v-model="selectedSkinTypes"
+              :value="type"
+              class="h-4 w-4 rounded border-gray-600 text-green-500 focus:ring-green-500 bg-gray-700"
+            >
+            <label :for="type" class="ml-2 text-sm text-gray-300">{{ type }}</label>
           </div>
         </div>
-      </section>
+      </div>
 
-      <!-- Quick Links -->
-      <section class="mt-24 border-t border-gray-700 pt-12">
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-8 text-left">
-          <div>
-            <h4 class="text-white font-semibold mb-4">Products</h4>
-            <ul class="space-y-2">
-              <li><a href="#" class="text-gray-400 hover:text-green-500">Skincare</a></li>
-              <li><a href="#" class="text-gray-400 hover:text-green-500">Makeup</a></li>
-              <li><a href="#" class="text-gray-400 hover:text-green-500">Hair Care</a></li>
-            </ul>
-          </div>
-          <div>
-            <h4 class="text-white font-semibold mb-4">Company</h4>
-            <ul class="space-y-2">
-              <li><a href="#" class="text-gray-400 hover:text-green-500">About Us</a></li>
-              <li><a href="#" class="text-gray-400 hover:text-green-500">Contact</a></li>
-              <li><a href="#" class="text-gray-400 hover:text-green-500">Careers</a></li>
-            </ul>
-          </div>
-          <div>
-            <h4 class="text-white font-semibold mb-4">Support</h4>
-            <ul class="space-y-2">
-              <li><a href="#" class="text-gray-400 hover:text-green-500">Help Center</a></li>
-              <li><a href="#" class="text-gray-400 hover:text-green-500">Privacy Policy</a></li>
-              <li><a href="#" class="text-gray-400 hover:text-green-500">Terms of Service</a></li>
-            </ul>
-          </div>
-          <div>
-            <h4 class="text-white font-semibold mb-4">Connect</h4>
-            <ul class="space-y-2">
-              <li><a href="#" class="text-gray-400 hover:text-green-500">Instagram</a></li>
-              <li><a href="#" class="text-gray-400 hover:text-green-500">Twitter</a></li>
-              <li><a href="#" class="text-gray-400 hover:text-green-500">Facebook</a></li>
-            </ul>
-          </div>
-        </div>
-      </section>
+      <!-- Price Range Inputs -->
+      <div class="px-4 py-2">
+        <label for="min-price" class="block text-sm font-medium text-gray-300">Minimum Price</label>
+        <input 
+          type="number" 
+          id="min-price" 
+          v-model="minPrice"
+          class="mt-1 block w-full bg-gray-700 border border-gray-600 text-white py-2 px-3 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+          placeholder="0"
+        >
+      </div>
 
-      <!-- Footer -->
-      <footer class="mt-24 border-t border-gray-700 pt-8">
-        <p class="text-gray-400 text-sm">
-          © {{ new Date().getFullYear() }} BeautyGuide. All rights reserved.
-        </p>
-      </footer>
+      <div class="px-4 py-2">
+        <label for="max-price" class="block text-sm font-medium text-gray-300">Maximum Price</label>
+        <input 
+          type="number" 
+          id="max-price" 
+          v-model="maxPrice"
+          class="mt-1 block w-full bg-gray-700 border border-gray-600 text-white py-2 px-3 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+          placeholder="1000"
+        >
+      </div>
     </div>
-  </main>
+
+    <!-- Main Content -->
+    <div class="flex-1 p-8">
+      <div v-if="isLoading" class="text-center text-gray-400">
+        Loading products...
+      </div>
+      
+      <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div 
+          v-for="product in filteredProducts" 
+          :key="product.id" 
+          class="bg-gray-800 rounded-lg overflow-hidden shadow-lg"
+        >
+          <div class="p-6">
+            <h3 class="text-xl font-semibold text-white mb-2">
+              {{ product.name }}
+            </h3>
+            <p class="text-gray-400 mb-2">Brand: {{ product.brand }}</p>
+            <p class="text-green-500 font-bold mb-4">Price: ${{ product.price }}</p>
+            <p class="text-gray-400 mb-2">Type: {{ product.Label }}</p>
+            
+            <div class="text-sm text-gray-400">
+              <p class="mb-2">Suitable for: 
+                {{
+                  [
+                    product.Normal == 1 ? 'Normal' : null,
+                    product.Oily == 1 ? 'Oily' : null,
+                    product.Dry == 1 ? 'Dry' : null,
+                    product.Combination == 1 ? 'Combination' : null,
+                    product.Sensitive == 1 ? 'Sensitive' : null
+                  ].filter(Boolean).join(', ')
+                }}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
+
+<style scoped>
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+</style>
