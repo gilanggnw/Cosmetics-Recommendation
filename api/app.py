@@ -1,5 +1,5 @@
-from flask import Flask, jsonify
-from flask import request
+from flask import Flask, jsonify, request
+from flask_jwt_extended import JWTManager, create_access_token
 from werkzeug.security import generate_password_hash, check_password_hash
 import pandas as pd
 from flask_cors import CORS
@@ -11,10 +11,16 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-
 # Set up Flask application
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
+
+# Setup JWT using only environment variable
+app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
+if not app.config['JWT_SECRET_KEY']:
+    raise ValueError("No JWT_SECRET_KEY set for Flask application")
+    
+jwt = JWTManager(app)
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 base_dir = os.path.dirname(current_dir)
@@ -139,16 +145,42 @@ def register_user():
         connection = get_db_connection()
         data = request.json
         
-        with connection.cursor() as cursor:
-            sql = "INSERT INTO users (username, email, password_hash) VALUES (%s, %s, %s)"
-            cursor.execute(sql, (data['username'], data['email'], data['password_hash']))
+        # Hash the password before storing
+        password_hash = generate_password_hash(data['password_hash'])
         
+        with connection.cursor() as cursor:
+            # Check if user exists
+            cursor.execute("SELECT * FROM users WHERE email = %s OR username = %s", 
+                         (data['email'], data['username']))
+            if cursor.fetchone():
+                return jsonify({"error": "Email or username already exists"}), 400
+                
+            # Insert new user
+            sql = "INSERT INTO users (username, email, password_hash) VALUES (%s, %s, %s)"
+            cursor.execute(sql, (data['username'], data['email'], password_hash))
+            
+            # Get the new user's ID
+            user_id = cursor.lastrowid
+            
         connection.commit()
-        return jsonify({"message": "User registered successfully"}), 201
+        
+        # Generate JWT token
+        token = create_access_token(identity=user_id)
+        
+        return jsonify({
+            "message": "User registered successfully",
+            "token": token,
+            "user": {
+                "username": data['username'],
+                "email": data['email']
+            }
+        }), 201
+        
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     finally:
-        connection.close()
+        if connection:
+            connection.close()
 
 # Add bookmark endpoint
 @app.route('/api/bookmark', methods=['POST'])

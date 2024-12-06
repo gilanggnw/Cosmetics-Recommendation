@@ -1,5 +1,8 @@
 <script setup>
 import { RouterLink, RouterView } from 'vue-router'
+import { useAuthStore } from '@/stores/authStore'
+
+const authStore = useAuthStore()
 </script>
 
 <template>
@@ -32,6 +35,30 @@ import { RouterLink, RouterView } from 'vue-router'
             >
               About
             </RouterLink>
+
+            <template v-if="!authStore.isAuthenticated()">
+              <RouterLink
+                to="/login"
+                class="text-gray-300 hover:text-green-500 transition-colors"
+              >
+                Login
+              </RouterLink>
+              <RouterLink
+                to="/register"
+                class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-md transition-colors"
+              >
+                Register
+              </RouterLink>
+            </template>
+            <template v-else>
+              <span class="text-gray-300">Welcome, {{ authStore.user?.username }}</span>
+              <button
+                @click="authStore.logout"
+                class="text-gray-300 hover:text-green-500 transition-colors"
+              >
+                Logout
+              </button>
+            </template>
           </div>
         </nav>
       </div>
