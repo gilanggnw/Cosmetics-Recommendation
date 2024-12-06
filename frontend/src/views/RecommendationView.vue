@@ -14,27 +14,20 @@ const sortOption = ref('none')
 const currentPage = ref(1)
 const itemsPerPage = 30
 
-const fetchProducts = async () => {
-  try {
-    const response = await fetch('https://loveyourskin.vercel.app/api/products')
-    const data = await response.json()
-    products.value = data
-  } catch (error) {
-    console.error('Error fetching products:', error)
-  } finally {
-    isLoading.value = false
-  }
-}
+const filteredResults = ref([])
 
-const filteredProducts = computed(() => {
-  if (!products.value.length) return []
+const applyFilters = () => {
+  if (!products.value.length) {
+    filteredResults.value = []
+    return
+  }
   
-  let filtered = products.value.filter(product => {
+  filteredResults.value = products.value.filter(product => {
     const matchesType = selectedProductTypes.value.length === 0 || 
-                       selectedProductTypes.value.includes(product.Label)
+                     selectedProductTypes.value.includes(product.Label)
     
     const matchesSkinType = selectedSkinTypes.value.length === 0 || 
-                           selectedSkinTypes.value.some(type => product[type] == 1)
+                         selectedSkinTypes.value.some(type => product[type] == 1)
     
     const productPrice = parseFloat(product.price)
     const matchesMinPrice = !minPrice.value || productPrice >= parseFloat(minPrice.value)
@@ -44,15 +37,60 @@ const filteredProducts = computed(() => {
   })
 
   if (sortOption.value !== 'none') {
-    filtered.sort((a, b) => {
+    filteredResults.value.sort((a, b) => {
       const priceA = parseFloat(a.price)
       const priceB = parseFloat(b.price)
       return sortOption.value === 'asc' ? priceA - priceB : priceB - priceA
     })
   }
+  
+  currentPage.value = 1 // Reset to first page when filtering
+}
 
-  return filtered
-})
+
+
+const fetchProducts = async () => {
+  try {
+    const response = await fetch('http://localhost:5000/api/products')
+    const data = await response.json()
+    products.value = data
+  } catch (error) {
+    console.error('Error fetching products:', error)
+  } finally {
+    isLoading.value = false
+  }
+}
+
+// const filteredProducts = computed(() => {
+//   if (!products.value.length) return []
+  
+//   let filtered = products.value.filter(product => {
+//     const matchesType = selectedProductTypes.value.length === 0 || 
+//                        selectedProductTypes.value.includes(product.Label)
+    
+//     const matchesSkinType = selectedSkinTypes.value.length === 0 || 
+//                            selectedSkinTypes.value.some(type => product[type] == 1)
+    
+//     const productPrice = parseFloat(product.price)
+//     const matchesMinPrice = !minPrice.value || productPrice >= parseFloat(minPrice.value)
+//     const matchesMaxPrice = !maxPrice.value || productPrice <= parseFloat(maxPrice.value)
+    
+//     return matchesType && matchesSkinType && matchesMinPrice && matchesMaxPrice
+//   })
+
+//   if (sortOption.value !== 'none') {
+//     filtered.sort((a, b) => {
+//       const priceA = parseFloat(a.price)
+//       const priceB = parseFloat(b.price)
+//       return sortOption.value === 'asc' ? priceA - priceB : priceB - priceA
+//     })
+//   }
+
+//   return filtered
+// })
+
+const filteredProducts = computed(() => filteredResults.value)
+
 
 const paginatedProducts = computed(() => {
   const startIndex = (currentPage.value - 1) * itemsPerPage
@@ -81,7 +119,7 @@ const goToPage = (page) => {
 }
 
 onMounted(() => {
-  fetchProducts()
+  fetchProducts().then(() => applyFilters())
 })
 
 const visiblePages = computed(() => {
@@ -108,6 +146,7 @@ const visiblePages = computed(() => {
 
 <template>
   <div class="flex">
+  
     <!-- Sidebar -->
     <div class="fixed left-0 top-24 w-64 h-[calc(100vh-6rem)] bg-gray-800 text-white flex flex-col border-r border-gray-700 overflow-y-auto">
       <div class="p-4 text-2xl font-bold">Filters</div>
@@ -181,6 +220,16 @@ const visiblePages = computed(() => {
           class="mt-1 block w-full bg-gray-700 border border-gray-600 text-white py-2 px-3 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
           placeholder="1000"
         >
+      </div>
+
+      <!-- Search Button -->
+      <div class="px-4 py-2 mt-2">
+        <button
+          @click="applyFilters"
+          class="w-full bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-md transition-colors text-sm"
+        >
+          Search
+        </button>
       </div>
     </div>
 
