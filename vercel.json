@@ -2,26 +2,36 @@
     "version": 2,
     "builds": [
       {
-        "src": "flask_backend/api/app.py",
+        "src": "api/app.py",
         "use": "@vercel/python",
         "config": { 
           "maxLambdaSize": "15mb",
           "runtime": "python3.9",
           "includeFiles": [
-            "flask_backend/cosmetic_p.csv",
-            "flask_backend/.env"
+            "api/data/cosmetic_p.csv"
           ]
+        }
+      },
+      {
+        "src": "frontend/package.json",
+        "use": "@vercel/static-build",
+        "config": {
+          "distDir": "dist"
         }
       }
     ],
     "routes": [
       {
         "src": "/api/(.*)",
-        "dest": "flask_backend/api/app.py"
+        "dest": "api/app.py"
+      },
+      {
+        "src": "/(.*)",
+        "dest": "frontend/dist/$1"
       }
     ],
     "env": {
       "FLASK_ENV": "production",
-      "FLASK_APP": "flask_backend/api/app.py"
+      "FLASK_APP": "api/app.py"
     }
 }

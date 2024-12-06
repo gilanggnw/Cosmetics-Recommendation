@@ -3,19 +3,32 @@ import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
-//import csv from 'vite-plugin-csv'
 
-// https://vite.dev/config/
 export default defineConfig({
+  root: 'frontend',
   plugins: [
     vue(),
     vueDevTools(),
-    //csv(),
   ],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url))
-    },
+    }
   },
-  //assetsInclude: ['**/*.csv']
+  build: {
+    outDir: 'dist',
+    emptyOutDir: true
+  },
+  server: {
+    // Development proxy only
+    ...(process.env.NODE_ENV === 'development' ? {
+      proxy: {
+        '/api': {
+          target: 'http://localhost:5000',
+          changeOrigin: true,
+          secure: false
+        }
+      }
+    } : {})
+  }
 })
