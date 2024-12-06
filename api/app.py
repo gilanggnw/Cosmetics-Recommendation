@@ -24,7 +24,7 @@ jwt = JWTManager(app)
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 base_dir = os.path.dirname(current_dir)
-csv_path = os.path.join(base_dir, 'cosmetic_p.csv')
+csv_path = os.path.join(base_dir, 'api/cosmetic_p.csv')
 
 # Database configuration
 DB_CONFIG = {
