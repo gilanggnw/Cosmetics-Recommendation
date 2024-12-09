@@ -1,4 +1,18 @@
 <script setup>
+import { useAuthStore } from '@/stores/authStore'
+import { useRouter } from 'vue-router'
+
+const authStore = useAuthStore()
+const router = useRouter()
+
+const handleConsultationClick = () => {
+  if (!authStore.isAuthenticated()) {
+    router.push('/login')
+  } else {
+    router.push('/recommendation')
+  }
+}
+
 const reviews = [
   {
     name: 'Sarah Johnson',
@@ -32,13 +46,13 @@ const reviews = [
         Get personalized skincare recommendations tailored to your unique needs and concerns
       </p>
 
-      <RouterLink to="/recommendation">
-          <button
-          class="bg-green-500 hover:bg-green-600 text-white text-xl font-semibold py-4 px-8 rounded-lg transform transition-all hover:scale-105 shadow-lg hover:shadow-green-500/50"        
-        >
-          Start Skincare Consultation Now
-        </button>
-      </RouterLink>
+      <!-- Consultation Button -->
+      <button
+        @click="handleConsultationClick"
+        class="bg-green-500 hover:bg-green-600 text-white text-xl font-semibold py-4 px-8 rounded-lg transform transition-all hover:scale-105 shadow-lg hover:shadow-green-500/50"
+      >
+        {{ authStore.isAuthenticated() ? 'Start Skincare Consultation Now' : 'Login to Start Consultation' }}
+      </button>
       <!-- Consultation Button -->
 
       <!-- Features Section -->

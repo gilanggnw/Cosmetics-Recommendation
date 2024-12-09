@@ -11,19 +11,14 @@ const authStore = useAuthStore()
       <div class="container mx-auto px-4">
         <nav class="flex justify-between items-center">
           <div class="flex items-center">
-            <RouterLink
-              to="/"
-              class="hover:opacity-80 transition-opacity"
-            >
-              <img
-                src="@/assets/beautyguide-logo.png"
-                alt="BeautyGuide Logo"
-                class="h-12 w-auto"
-              />
+            <RouterLink to="/" class="hover:opacity-80 transition-opacity">
+              <img src="@/assets/beautyguide-logo.png" alt="BeautyGuide Logo" class="h-12 w-auto" />
             </RouterLink>
           </div>
           <div class="space-x-6">
+            <!-- Only show search when authenticated -->
             <RouterLink
+              v-if="authStore.isAuthenticated()"
               to="/search"
               class="text-gray-300 hover:text-green-500 transition-colors"
             >
