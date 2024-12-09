@@ -28,6 +28,7 @@ const handleLogin = async () => {
     if (response.ok) {
       authStore.setToken(data.token)
       authStore.setUser(data.user)
+      localStorage.setItem('user_id', parseInt(data.user.id, 10)) // Store user ID as an integer in localStorage
       router.push('/')
     } else {
       error.value = data.error || 'Login failed'

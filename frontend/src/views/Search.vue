@@ -54,45 +54,19 @@ const totalPages = computed(() =>
   Math.ceil(filteredProducts.value.length / itemsPerPage)
 )
 
-const recordSearchHistory = async (query) => {
-  if (!authStore.isAuthenticated()) return;
-
-  try {
-    const response = await fetch('http://localhost:5000/api/search/history', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${authStore.token}` // Make sure token is properly formatted
-      },
-      body: JSON.stringify({
-        search_query: String(query), // Ensure query is a string
-        user_id: authStore.user?.id // Add user ID from auth store
-      })
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error('Search history error:', errorData);
-      throw new Error(errorData.error || 'Failed to record search history');
-    }
-
-    const data = await response.json();
-    console.log('Search history recorded:', data);
-  } catch (error) {
-    console.error('Error recording search history:', error);
-  }
-}
-
 // Update handleSearch function
 const handleSearch = async () => {
   isLoading.value = true;
   showResults.value = true;
 
   try {
+    console.log('Query type:', typeof searchStore.searchQuery); // Debug type
+    console.log('Query value:', searchStore.searchQuery); // Debug value
+
     if (searchStore.searchQuery) {
-      // Only record search if user is authenticated
+      const query = String(searchStore.searchQuery).trim(); // Explicitly convert to string
       if (authStore.isAuthenticated()) {
-        await recordSearchHistory(searchStore.searchQuery);
+        await recordSearchHistory(query);
       }
 
       const filtered = searchStore.allProducts.filter(product =>
@@ -112,7 +86,44 @@ const handleSearch = async () => {
   } finally {
     isLoading.value = false;
   }
-}
+};
+
+const recordSearchHistory = async (query) => {
+  if (!authStore.isAuthenticated()) return;
+
+  const userId = localStorage.getItem('user_id');
+  if (!userId) {
+    console.error('User ID not found in localStorage');
+    return;
+  }
+
+  const postData = {
+    user_id: parseInt(userId, 10), // Ensure user_id is an integer
+    search_query: String(query).trim()
+  };
+
+  try {
+    const response = await fetch('http://localhost:5000/api/search/history', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authStore.token}`
+      },
+      credentials: 'include',
+      body: JSON.stringify(postData)
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to record search history');
+    }
+
+    const data = await response.json();
+    console.log('Search history recorded:', data);
+  } catch (error) {
+    console.error('Error recording search history:', error);
+  }
+};
 
 // Handle page change
 const changePage = (page) => {

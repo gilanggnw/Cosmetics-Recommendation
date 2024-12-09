@@ -31,8 +31,7 @@ if not app.config['JWT_SECRET_KEY']:
 jwt = JWTManager(app)
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
-base_dir = os.path.dirname(current_dir)
-csv_path = os.path.join(base_dir, 'cosmetic_p.csv')
+csv_path = os.path.join(current_dir, 'cosmetic_p.csv')  # CSV file should be in the api folder
 
 # Database configuration
 DB_CONFIG = {
@@ -71,14 +70,14 @@ def init_db():
                 )
             """)
 
-            # Create search_history table
+            # Create new search_history table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS search_history (
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     user_id INT NOT NULL,
                     search_query VARCHAR(255) NOT NULL,
                     search_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                    FOREIGN KEY (user_id) REFERENCES users(id)
                 )
             """)
 
@@ -246,35 +245,34 @@ def add_bookmark():
     finally:
         connection.close()
 
-# Update the search history endpoint to properly handle CORS
 @app.route('/api/search/history', methods=['POST', 'OPTIONS'])
 @jwt_required()
+def handle_options():
+    response = jsonify({'message': 'OK'})
+    response.headers.add('Access-Control-Allow-Origin', 'http://localhost:5173')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
+    return response, 200
 def add_search_history():
-    if request.method == 'OPTIONS':
-        return jsonify({"message": "OK"}), 200
-        
     try:
-        current_user_id = get_jwt_identity()  # Get user ID from JWT token
-        data = request.json
-        
-        if not data or 'search_query' not in data:
-            return jsonify({"error": "Missing search query"}), 422
-            
+        data = request.get_json()
+        user_id = data.get('user_id')
+        search_query = data.get('search_query')
+
+        if not user_id or not search_query:
+            return jsonify({"error": "Missing user_id or search_query"}), 422
+
         connection = get_db_connection()
-        
-        with connection.cursor() as cursor:
-            sql = "INSERT INTO search_history (user_id, search_query) VALUES (%s, %s)"
-            cursor.execute(sql, (current_user_id, data['search_query']))
-            
-        connection.commit()
-        return jsonify({"message": "Search history recorded"}), 201
-        
-    except Exception as e:
-        print(f"Search history error: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-    finally:
-        if connection:
+        try:
+            with connection.cursor() as cursor:
+                sql = "INSERT INTO search_history (user_id, search_query) VALUES (%s, %s)"
+                cursor.execute(sql, (user_id, search_query))
+            connection.commit()
+            return jsonify({"message": "Search history recorded", "query": search_query}), 201
+        finally:
             connection.close()
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # Simple hello world endpoint
 @app.route('/api/hello', methods=['GET'])
