@@ -1,7 +1,9 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
+import { useAuthStore } from '@/stores/authStore';
 
+const authStore = useAuthStore()
 const skinTypes = ref(['Normal', 'Oily', 'Dry', 'Combination', 'Sensitive'])
 const selectedSkinTypes = ref([])
 const productTypes = ref(['Cleanser', 'Moisturizer', 'Face Mask', 'Treatment', 'Eye cream', 'Sun protect'])
@@ -16,12 +18,44 @@ const itemsPerPage = 30
 
 const filteredResults = ref([])
 
+// Add this new function to track filter clicks
+const trackFilterClick = async (filterType) => {
+  if (!authStore.isAuthenticated()) return
+
+  try {
+    const response = await fetch('http://localhost:5000/api/click-count', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authStore.token}`
+      },
+      body: JSON.stringify({
+        filter_type: filterType
+      })
+    })
+
+    if (!response.ok) {
+      console.error('Failed to track filter click')
+    }
+  } catch (error) {
+    console.error('Error tracking filter click:', error)
+  }
+}
+
 const applyFilters = () => {
   if (!products.value.length) {
     filteredResults.value = []
     return
   }
+
+  const allSelectedFilters = [...selectedProductTypes.value, ...selectedSkinTypes.value]
   
+  // Track selected filters
+  for (const filter of allSelectedFilters) {
+    trackFilterClick(filter)
+  }
+
+
   filteredResults.value = products.value.filter(product => {
     const matchesType = selectedProductTypes.value.length === 0 || 
                      selectedProductTypes.value.includes(product.Label)

@@ -92,6 +92,25 @@ def init_db():
                     UNIQUE KEY unique_bookmark (user_id, product_id)
                 )
             """)
+            # Create click_counts table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS click_counts (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    user_id INT NOT NULL,
+                    cleanser_count INT NOT NULL,
+                    facemask_count INT NOT NULL,
+                    eyecream_count INT NOT NULL,
+                    moisturizer_count INT NOT NULL,
+                    treatment_count INT NOT NULL,
+                    sunprotect_count INT NOT NULL,
+                    normal_count INT NOT NULL,
+                    dry_count INT NOT NULL,
+                    sensitive_count INT NOT NULL,
+                    oily_count INT NOT NULL,
+                    combination_count INT NOT NULL,
+                    FOREIGN KEY (user_id) REFERENCES users(id)
+                )
+            """)
 
         connection.commit()
         print("Database tables created successfully")
@@ -169,6 +188,16 @@ def register_user():
             # Get the new user's ID
             user_id = cursor.lastrowid
             
+            # Create initial click_counts entry for the new user
+            cursor.execute("""
+                INSERT INTO click_counts 
+                (user_id, cleanser_count, facemask_count, eyecream_count, 
+                moisturizer_count, treatment_count, sunprotect_count, 
+                normal_count, dry_count, sensitive_count, oily_count, 
+                combination_count)
+                VALUES (%s, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+            """, (user_id,))
+            
         connection.commit()
         
         # Generate JWT token
@@ -178,6 +207,7 @@ def register_user():
             "message": "User registered successfully",
             "token": token,
             "user": {
+                "id": user_id,
                 "username": data['username'],
                 "email": data['email']
             }
@@ -273,6 +303,80 @@ def add_search_history():
             connection.close()
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+@app.route('/api/click-count', methods=['POST'])
+@jwt_required()
+def update_click_count():
+    try:
+        user_id = get_jwt_identity()
+        data = request.json
+        filter_type = data.get('filter_type')  # e.g., 'moisturizer', 'oily', etc.
+
+        if not filter_type:
+            return jsonify({"error": "Missing filter_type"}), 400
+
+        # Map filter types to column names
+        column_mapping = {
+            'Cleanser': 'cleanser_count',
+            'Face Mask': 'facemask_count',
+            'Eye cream': 'eyecream_count',
+            'Moisturizer': 'moisturizer_count',
+            'Treatment': 'treatment_count',
+            'Sun protect': 'sunprotect_count',
+            'Normal': 'normal_count',
+            'Dry': 'dry_count',
+            'Sensitive': 'sensitive_count',
+            'Oily': 'oily_count',
+            'Combination': 'combination_count'
+        }
+
+        column_name = column_mapping.get(filter_type)
+        if not column_name:
+            return jsonify({"error": "Invalid filter type"}), 400
+
+        connection = get_db_connection()
+        with connection.cursor() as cursor:
+            # Check if user has an entry
+            cursor.execute("SELECT * FROM click_counts WHERE user_id = %s", (user_id,))
+            user_entry = cursor.fetchone()
+
+            if user_entry:
+                # Increment the specific count
+                cursor.execute(f"UPDATE click_counts SET {column_name} = {column_name} + 1 WHERE user_id = %s", (user_id,))
+            else:
+                # Create new entry with all counts set to 0 except the current one
+                columns = column_mapping.values()
+                default_values = {col: 1 if col == column_name else 0 for col in columns}
+                
+                sql = """
+                    INSERT INTO click_counts 
+                    (user_id, cleanser_count, facemask_count, eyecream_count, 
+                    moisturizer_count, treatment_count, sunprotect_count, 
+                    normal_count, dry_count, sensitive_count, oily_count, 
+                    combination_count) 
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """
+                values = (user_id, 
+                         default_values['cleanser_count'],
+                         default_values['facemask_count'],
+                         default_values['eyecream_count'],
+                         default_values['moisturizer_count'],
+                         default_values['treatment_count'],
+                         default_values['sunprotect_count'],
+                         default_values['normal_count'],
+                         default_values['dry_count'],
+                         default_values['sensitive_count'],
+                         default_values['oily_count'],
+                         default_values['combination_count'])
+                cursor.execute(sql, values)
+
+        connection.commit()
+        return jsonify({"message": f"{filter_type} count updated successfully"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if connection:
+            connection.close()
 
 # Simple hello world endpoint
 @app.route('/api/hello', methods=['GET'])

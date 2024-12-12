@@ -14,6 +14,35 @@ const isLoading = ref(false)
 const showResults = ref(false)
 const itemsPerPage = 20
 
+const showRecommendations = computed(() => !searchStore.searchQuery)
+
+// Add a method to handle initial load
+const initializeSearch = async () => {
+  console.log('Initializing search...')
+  isLoading.value = true
+  
+  try {
+    // Ensure allProducts are loaded in store
+    if (!searchStore.allProducts?.length) {
+      await searchStore.fetchAllProducts() // Add this method to your store if not exists
+    }
+    
+    // Set initial products
+    searchStore.setProducts(searchStore.allProducts)
+    showResults.value = true
+    
+  } catch (error) {
+    console.error('Error initializing search:', error)
+  } finally {
+    isLoading.value = false
+  }
+}
+
+onMounted(async () => {
+  console.log('Component mounted')
+  await initializeSearch()
+})
+
 // Fetch all products initially
 const fetchProducts = async () => {
   try {
@@ -78,8 +107,9 @@ const handleSearch = async () => {
       searchStore.setProducts(filtered);
       searchStore.setCurrentPage(1);
     } else {
-      const shuffled = [...searchStore.allProducts].sort(() => 0.5 - Math.random());
-      searchStore.setProducts(shuffled.slice(0, itemsPerPage));
+      // When search query is empty, show all products
+      searchStore.setProducts(searchStore.allProducts);
+      searchStore.setCurrentPage(1);
     }
   } catch (error) {
     console.error('Search error:', error);
