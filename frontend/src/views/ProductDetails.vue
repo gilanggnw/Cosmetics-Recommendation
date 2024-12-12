@@ -131,13 +131,6 @@ onMounted(() => {
                 {{ product.ingredients }}
               </p>
             </div>
-
-            <div class="bg-gray-750 rounded-lg p-6 mt-6">
-              <h2 class="text-xl font-semibold text-white mb-4">Description</h2>
-              <p class="text-gray-300 leading-relaxed">
-                {{ product.description }}
-              </p>
-            </div>
           </div>
         </div>
       </div>
