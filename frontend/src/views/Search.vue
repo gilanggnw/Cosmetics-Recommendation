@@ -13,6 +13,9 @@ const authStore = useAuthStore()
 const isLoading = ref(false)
 const showResults = ref(false)
 const itemsPerPage = 20
+const localQuery = ref('')
+const viewState = ref('initial') // 'initial', 'search'
+
 
 const showRecommendations = computed(() => !searchStore.searchQuery)
 
@@ -24,7 +27,7 @@ const initializeSearch = async () => {
   try {
     // Ensure allProducts are loaded in store
     if (!searchStore.allProducts?.length) {
-      await searchStore.fetchAllProducts() // Add this method to your store if not exists
+      //await searchStore.fetchAllProducts() // Add this method to your store if not exists
     }
     
     // Set initial products
@@ -39,8 +42,9 @@ const initializeSearch = async () => {
 }
 
 onMounted(async () => {
-  console.log('Component mounted')
-  await initializeSearch()
+  await fetchProducts()
+  viewState.value = 'initial'
+  showResults.value = true
 })
 
 // Fetch all products initially
@@ -92,8 +96,11 @@ const handleSearch = async () => {
     console.log('Query type:', typeof searchStore.searchQuery); // Debug type
     console.log('Query value:', searchStore.searchQuery); // Debug value
 
-    if (searchStore.searchQuery) {
-      const query = String(searchStore.searchQuery).trim(); // Explicitly convert to string
+    searchStore.setSearchQuery(localQuery.value);
+
+    if (localQuery.value) {
+      viewState.value = 'search'
+      const query = String(localQuery.value).trim(); // Explicitly convert to string
       if (authStore.isAuthenticated()) {
         await recordSearchHistory(query);
       }
@@ -108,6 +115,7 @@ const handleSearch = async () => {
       searchStore.setCurrentPage(1);
     } else {
       // When search query is empty, show all products
+      viewState.value = 'initial'
       searchStore.setProducts(searchStore.allProducts);
       searchStore.setCurrentPage(1);
     }
@@ -190,7 +198,7 @@ onMounted(() => {
       </h1>
       <div class="relative">
         <input
-          v-model="searchStore.searchQuery"
+          v-model="localQuery"
           type="text"
           placeholder="Search for cosmetics..."
           class="w-full px-6 py-4 bg-gray-800 text-white rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none placeholder-gray-400"
@@ -208,7 +216,7 @@ onMounted(() => {
     <!-- Results Section -->
     <section v-if="showResults" class="max-w-7xl mx-auto">
       <h2 class="text-2xl font-semibold text-white mb-8">
-        {{ searchStore.searchQuery ? 'Search Results:' : 'You might like these:' }}
+        {{ viewState === 'initial' ? 'You Might Like These' : 'Search Results' }}
       </h2>
 
       <div v-if="isLoading" class="text-center text-gray-400">
