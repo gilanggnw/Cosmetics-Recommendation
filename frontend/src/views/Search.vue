@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useSearchStore } from '@/stores/searchStore'
 import { useAuthStore } from '@/stores/authStore'
@@ -15,6 +15,14 @@ const showResults = ref(false)
 const itemsPerPage = 20
 const localQuery = ref('')
 const viewState = ref('initial') // 'initial', 'search'
+const recommendedProducts = ref([])
+const isLoadingRecommendations = ref(false)
+const hasSearched = ref(false)
+
+const userPreferences = ref({
+  productType: '',
+  skinType: ''
+})
 
 
 const showRecommendations = computed(() => !searchStore.searchQuery)
@@ -27,12 +35,13 @@ const initializeSearch = async () => {
   try {
     // Ensure allProducts are loaded in store
     if (!searchStore.allProducts?.length) {
-      //await searchStore.fetchAllProducts() // Add this method to your store if not exists
+      await fetchProducts()
     }
     
     // Set initial products
     searchStore.setProducts(searchStore.allProducts)
     showResults.value = true
+    await fetchRecommendedProducts()
     
   } catch (error) {
     console.error('Error initializing search:', error)
@@ -45,6 +54,7 @@ onMounted(async () => {
   await fetchProducts()
   viewState.value = 'initial'
   showResults.value = true
+  await fetchRecommendedProducts()
 })
 
 // Fetch all products initially
@@ -89,8 +99,15 @@ const totalPages = computed(() =>
 
 // Update handleSearch function
 const handleSearch = async () => {
+
+  if (!searchStore.searchQuery.trim()) {
+    searchStore.clearProducts()
+    hasSearched.value = false
+    return
+  }
+
   isLoading.value = true;
-  showResults.value = true;
+  hasSearched.value = true;
 
   try {
     console.log('Query type:', typeof searchStore.searchQuery); // Debug type
@@ -184,39 +201,167 @@ const getPageNumbers = (current, total) => {
   return [1, '...', current - 2, current - 1, current, current + 1, current + 2, '...', total]
 }
 
-onMounted(() => {
-  fetchProducts()
-})
+const getHighestCounts = async () => {
+  try {
+    const response = await fetch('http://localhost:5000/api/click-counts', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      },
+      credentials: 'include'
+    })
+    const data = await response.json()
+    
+    const productTypes = {
+      Cleanser: data.cleanser_count,
+      'Face Mask': data.facemask_count,
+      'Eye cream': data.eyecream_count,
+      Moisturizer: data.moisturizer_count,
+      Treatment: data.treatment_count,
+      'Sun protect': data.sunprotect_count
+    }
+    
+    const skinTypes = {
+      Normal: data.normal_count,
+      Dry: data.dry_count,
+      Sensitive: data.sensitive_count, 
+      Oily: data.oily_count,
+      Combination: data.combination_count
+    }
+
+    // Get highest count product type
+    const highestProductType = Object.entries(productTypes)
+      .reduce((a, b) => (a[1] > b[1] ? a : b))[0]
+
+    // Get highest count skin type  
+    const highestSkinType = Object.entries(skinTypes)
+      .reduce((a, b) => (a[1] > b[1] ? a : b))[0]
+
+    // Update the reactive variable
+    userPreferences.value = {
+      productType: highestProductType,
+      skinType: highestSkinType
+    }
+
+    return { productType: highestProductType, skinType: highestSkinType }
+  } catch (error) {
+    console.error('Error getting highest counts:', error)
+    return { productType: 'cleanser', skinType: 'normal' } // Default fallback
+  }
+}
+
+const fetchRecommendedProducts = async () => {
+  if (!searchStore.searchQuery) {
+    isLoadingRecommendations.value = true
+    try {
+      const { productType, skinType } = await getHighestCounts()
+      if (productType && skinType) {
+        // Filter products that match both product type and skin type
+        recommendedProducts.value = searchStore.allProducts.filter(product => 
+          product.Label === productType && 
+          product[skinType] === 1
+        ).slice(0,9)
+      }
+    } catch (error) {
+      console.error('Error:', error)
+      recommendedProducts.value = []
+    } finally {
+      isLoadingRecommendations.value = false
+    }
+  }
+}
+
+
+
+// onMounted(() => {
+//   fetchRecommendedProducts()
+// })
+
+// Add watcher for search query
+watch(() => searchStore.searchQuery, async (newQuery) => {
+  if (!newQuery.trim()) {
+    searchStore.setProducts([])
+    hasSearched.value = false
+    viewState.value = 'initial'
+    await fetchRecommendedProducts()
+    return
+  }
+
+  isLoading.value = true
+  hasSearched.value = true
+  viewState.value = 'search'
+
+  try {
+    const filtered = searchStore.allProducts.filter(product =>
+      product.name?.toLowerCase().includes(newQuery.toLowerCase()) ||
+      product.brand?.toLowerCase().includes(newQuery.toLowerCase()) ||
+      product.description?.toLowerCase().includes(newQuery.toLowerCase())
+    )
+    searchStore.setProducts(filtered)
+    await recordSearchHistory(newQuery)
+  } catch (error) {
+    console.error('Search error:', error)
+  } finally {
+    isLoading.value = false
+  }
+}, { immediate: true })
+
+
 </script>
 
 <template>
   <main class="min-h-screen bg-gray-900 py-12 px-4">
     <!-- Search Section -->
+    <!-- Search input without button -->
     <div class="max-w-3xl mx-auto text-center mb-16">
-      <h1 class="text-4xl font-bold text-white mb-8">
-        Find Your Perfect Products
-      </h1>
-      <div class="relative">
-        <input
-          v-model="localQuery"
-          type="text"
-          placeholder="Search for cosmetics..."
-          class="w-full px-6 py-4 bg-gray-800 text-white rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none placeholder-gray-400"
-          @keyup.enter="handleSearch"
-        />
-        <button
-          @click="handleSearch"
-          class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-md transition-colors"
-        >
-          Search
-        </button>
-      </div>
+      <h1 class="text-4xl font-bold text-white mb-8">Find Your Perfect Products</h1>
+      <input
+        v-model="searchStore.searchQuery"
+        type="text"
+        placeholder="Search products..."
+        class="w-full px-6 py-4 bg-gray-800 text-white rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none"
+      />
     </div>
 
-    <!-- Results Section -->
-    <section v-if="showResults" class="max-w-7xl mx-auto">
+    <!-- Recommended Products Section -->
+    <section v-if="!hasSearched && recommendedProducts.length">
       <h2 class="text-2xl font-semibold text-white mb-8">
-        {{ viewState === 'initial' ? 'You Might Like These' : 'Search Results' }}
+        Recommended {{ userPreferences.productType }} Products for {{ userPreferences.skinType }} Skin
+      </h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <div
+          v-for="product in recommendedProducts"
+          :key="product.id"
+          class="bg-gray-800 rounded-lg overflow-hidden hover:shadow-lg transition-shadow"
+        >
+          <div class="p-6">
+            <h3 class="text-xl font-semibold text-white mb-2 truncate">
+              {{ product.name }}
+            </h3>
+            <p class="text-green-500 mb-4 h-20 overflow-hidden">
+              Price: ${{ product.price }}
+            </p>
+            <div class="flex justify-between items-center">
+              <span class="text-green-500 font-semibold">
+                {{ product.brand }}
+              </span>
+              <RouterLink
+                :to="{ name: 'product-details', params: { id: product.id }}"
+                class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-md transition-colors text-sm"
+              >
+                View Details
+              </RouterLink>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Results Section -->
+    <section v-if="hasSearched" class="max-w-7xl mx-auto">
+      <h2 class="text-2xl font-semibold text-white mb-8">
+        Search Results
       </h2>
 
       <div v-if="isLoading" class="text-center text-gray-400">

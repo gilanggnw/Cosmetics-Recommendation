@@ -377,6 +377,35 @@ def update_click_count():
     finally:
         if connection:
             connection.close()
+            
+@app.route('/api/click-counts', methods=['GET'])
+@jwt_required()
+def get_click_counts():
+    try:
+        user_id = get_jwt_identity()
+        connection = get_db_connection()
+        
+        with connection.cursor() as cursor:
+            # Get user's click counts
+            cursor.execute("""
+                SELECT * FROM click_counts 
+                WHERE user_id = %s
+            """, (user_id,))
+            
+            user_counts = cursor.fetchone()
+            
+            if not user_counts:
+                return jsonify({
+                    "error": "No click counts found for user"
+                }), 404
+
+            return jsonify(user_counts), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if connection:
+            connection.close()
 
 # Simple hello world endpoint
 @app.route('/api/hello', methods=['GET'])
